@@ -57,4 +57,8 @@ export interface TracingContext {
    * Passed through unchanged so downstream vendors keep their state.
    */
   traceState?: string;
+   * Sampling decision carried via W3C trace-flags (`01` = sampled).
+   * When present, child spans inherit it (parent-based sampling).
+   */
+  sampled?: boolean;
 }
