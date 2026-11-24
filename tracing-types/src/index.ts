@@ -52,4 +52,9 @@ export interface SpanData {
 export interface TracingContext {
   traceId: string;
   spanId: string;
+  /**
+   * Opaque W3C `tracestate` header value (vendor-specific key/value list).
+   * Passed through unchanged so downstream vendors keep their state.
+   */
+  traceState?: string;
 }

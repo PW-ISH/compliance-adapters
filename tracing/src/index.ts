@@ -64,13 +64,22 @@ export interface Tracer {
   /**
    * Extract a `TracingContext` from W3C `traceparent` header format.
    * Returns `undefined` if the header is absent or malformed.
+   * An optional W3C `tracestate` header is carried through on the context.
    */
-  extractContext(traceparent: string | undefined): TracingContext | undefined;
+  extractContext(
+    traceparent: string | undefined,
+    tracestate?: string | undefined,
+  ): TracingContext | undefined;
   /**
    * Inject a context into a `traceparent` header string.
    * Useful for propagating context to outbound HTTP calls.
    */
   injectContext(context: TracingContext): string;
+  /**
+   * Return the `tracestate` header value to propagate for `context`, or
+   * `undefined` when there is no vendor state to forward.
+   */
+  injectTraceState(context: TracingContext): string | undefined;
   /**
    * Flush any pending exporter calls and shut down.
    * Returns a promise that resolves once all in-flight exports settle.
@@ -121,6 +130,22 @@ export interface TracingOptions {
  * a strong source of randomness and its collision/predictability weaknesses
  * risk merging unrelated traces in high-throughput producers.
  */
+/**
+ * Trim a W3C `tracestate` value, dropping empty list members. Returns
+ * `undefined` for absent/blank input. Values longer than 512 chars (the W3C
+ * propagation limit) are discarded rather than truncated mid-entry.
+ */
+export function normalizeTraceState(tracestate: string | undefined): string | undefined {
+  if (!tracestate) return undefined;
+  const value = tracestate
+    .split(',')
+    .map((m) => m.trim())
+    .filter((m) => m.length > 0)
+    .join(',');
+  if (!value || value.length > 512) return undefined;
+  return value;
+}
+
 function randomHex(bytes: number): string {
   return randomBytes(bytes).toString('hex');
 }
@@ -237,7 +262,10 @@ export class DefaultTracer implements Tracer {
     );
   }
 
-  extractContext(traceparent: string | undefined): TracingContext | undefined {
+  extractContext(
+    traceparent: string | undefined,
+    tracestate?: string | undefined,
+  ): TracingContext | undefined {
     if (!traceparent) return undefined;
     // W3C traceparent format: version-traceId-parentId-traceFlags
     // e.g. "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
@@ -245,11 +273,18 @@ export class DefaultTracer implements Tracer {
     if (parts.length < 4 || parts[1].length !== 32 || parts[2].length !== 16) {
       return undefined;
     }
-    return { traceId: parts[1], spanId: parts[2] };
+    const traceState = normalizeTraceState(tracestate);
+    return traceState
+      ? { traceId: parts[1], spanId: parts[2], traceState }
+      : { traceId: parts[1], spanId: parts[2] };
   }
 
   injectContext(context: TracingContext): string {
     return `00-${context.traceId}-${context.spanId}-01`;
+  }
+
+  injectTraceState(context: TracingContext): string | undefined {
+    return normalizeTraceState(context.traceState);
   }
 
   async shutdown(): Promise<void> {
@@ -287,12 +322,19 @@ export class NoopTracer implements Tracer {
     return new NoopSpan();
   }
 
-  extractContext(_traceparent: string | undefined): TracingContext | undefined {
+  extractContext(
+    _traceparent: string | undefined,
+    _tracestate?: string | undefined,
+  ): TracingContext | undefined {
     return undefined;
   }
 
   injectContext(context: TracingContext): string {
     return `00-${context.traceId}-${context.spanId}-01`;
+  }
+
+  injectTraceState(context: TracingContext): string | undefined {
+    return normalizeTraceState(context.traceState);
   }
 
   async shutdown(): Promise<void> {}

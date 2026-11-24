@@ -17,27 +17,21 @@
 import {
   MetricsRegistry as GenericMetricsRegistry,
   NoopMetricsRegistry as GenericNoopMetricsRegistry,
-  DEFAULT_HISTOGRAM_BUCKETS,
   type Counter,
   type Histogram,
   type Outcome,
-  type MetricsRegistryOptions as GenericMetricsRegistryOptions,
+  type PhaseMetricsRegistryOptions,
 } from '@compliance-adapters/metrics';
 
-export { DEFAULT_HISTOGRAM_BUCKETS };
+export { DEFAULT_HISTOGRAM_BUCKETS, metricsHandler, OtlpMetricsExporter } from '@compliance-adapters/metrics';
 export type { Counter, Histogram, Outcome };
 
 export type Phase = 'rpc_poll' | 'event_relay' | 'webhook';
 
 const PHASES: Phase[] = ['rpc_poll', 'event_relay', 'webhook'];
 
-export type MetricsRegistryOptions = Omit<
-  GenericMetricsRegistryOptions<Phase>,
-  'phases' | 'prefix'
-> & {
-  /** Prefix prepended to every metric name (default: `horizon_listener`). */
-  prefix?: string;
-};
+/** `prefix` defaults to `horizon_listener`. */
+export type MetricsRegistryOptions = PhaseMetricsRegistryOptions<Phase>;
 
 /**
  * Holds a counter and a histogram for horizon-listener phases.
